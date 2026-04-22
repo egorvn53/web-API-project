@@ -1,95 +1,244 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Personal Collection Management System</title>
+    <title>Мой реестр коллекции</title>
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
-    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <style>
+        body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .navbar { background: rgba(0,0,0,0.3); }
+        .card { border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
+        .container { padding-top: 20px; }
+        .main-content { background: white; border-radius: 15px; padding: 30px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); }
+    </style>
 </head>
 <body>
-
-<div class="container">
-    <h1 class="mt-5">Personal Collection Management System</h1>
-    <form id="itemForm" class="mt-3">
-        <div class="form-group">
-            <label for="itemName">Item Name:</label>
-            <input type="text" class="form-control" id="itemName" required>
+    <!-- NAVBAR -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">📚 Collection Manager</a>
+            <div class="ml-auto">
+                {% if current_user.is_authenticated %}
+                    <span class="text-white mr-3">👤 {{ current_user.username }}</span>
+                    <a href="/logout" class="btn btn-danger btn-sm">Выход</a>
+                {% else %}
+                    <a href="/login" class="btn btn-success btn-sm mr-2">Вход</a>
+                    <a href="/register" class="btn btn-info btn-sm">Регистрация</a>
+                {% endif %}
+            </div>
         </div>
-        <div class="form-group">
-            <label for="itemDescription">Description:</label>
-            <input type="text" class="form-control" id="itemDescription">
+    </nav>
+
+    {% if current_user.is_authenticated %}
+    <div class="container">
+        <div class="main-content">
+            <h1 class="mb-4">📚 Моя коллекция</h1>
+
+            <!-- ADD ITEM FORM -->
+            <div class="card mb-4 p-4">
+                <h5>➕ Добавить предмет</h5>
+                <form id="itemForm">
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label>Название</label>
+                            <input type="text" class="form-control" id="title" required>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label>Тип</label>
+                            <select class="form-control" id="item_type">
+                                <option value="book">Книга</option>
+                                <option value="game">Видеоигра</option>
+                                <option value="movie">Фильм</option>
+                                <option value="other">Другое</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group col-md-4">
+                            <label>Автор/Разработчик</label>
+                            <input type="text" class="form-control" id="author">
+                        </div>
+                        <div class="form-group col-md-4">
+                            <label>Жанр</label>
+                            <input type="text" class="form-control" id="genre">
+                        </div>
+                        <div class="form-group col-md-4">
+                            <label>Оценка (0-10)</label>
+                            <input type="number" class="form-control" id="rating" min="0" max="10" step="0.1">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Статус</label>
+                        <select class="form-control" id="status">
+                            <option value="not_started">Не начинал</option>
+                            <option value="in_progress">В процессе</option>
+                            <option value="completed">Завершено</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Заметки</label>
+                        <textarea class="form-control" id="notes" rows="2"></textarea>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">💾 Добавить</button>
+                </form>
+            </div>
+
+            <!-- SEARCH AND FILTER -->
+            <div class="form-row mb-3">
+                <div class="form-group col-md-6">
+                    <input type="text" class="form-control" id="search" placeholder="🔍 Поиск по названию...">
+                </div>
+                <div class="form-group col-md-6">
+                    <select class="form-control" id="filterType">
+                        <option value="">Все типы</option>
+                        <option value="book">Книги</option>
+                        <option value="game">Видеоигры</option>
+                        <option value="movie">Фильмы</option>
+                        <option value="other">Другое</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- STATS -->
+            <div id="statsDiv" class="alert alert-info mb-4"></div>
+
+            <!-- ITEMS TABLE -->
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Название</th>
+                            <th>Тип</th>
+                            <th>Автор</th>
+                            <th>Жанр</th>
+                            <th>Статус</th>
+                            <th>⭐ Оценка</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody id="itemTable">
+                        <tr><td colspan="7" class="text-center text-muted">Загрузка...</td></tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
-        <button type="submit" class="btn btn-primary">Add Item</button>
-    </form>
-    <hr>
-    <h2>Item List</h2>
-    <input type="text" id="search" class="form-control" placeholder="Search items..." />
-    <table class="table table-bordered mt-2">
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Name</th>
-                <th>Description</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody id="itemTable">
-            <!-- Items will be appended here -->
-        </tbody>
-    </table>
-</div>
+    </div>
 
-<script>
-    let items = [];
-    let itemId = 0;
+    <script>
+        let allItems = [];
 
-    $('#itemForm').on('submit', function(event) {
-        event.preventDefault();
-        const itemName = $('#itemName').val();
-        const itemDescription = $('#itemDescription').val();
-        itemId++;
-        items.push({ id: itemId, name: itemName, description: itemDescription });
-        renderTable();
-        $('#itemForm')[0].reset();
-    });
+        // Load items on page load
+        function loadItems() {
+            fetch('/api/items', { headers: { 'Authorization': 'Bearer' } })
+                .then(r => r.json())
+                .then(data => {
+                    allItems = data;
+                    renderTable();
+                    updateStats();
+                })
+                .catch(e => console.error('Error:', e));
+        }
 
-    function renderTable() {
-        const searchValue = $('#search').val().toLowerCase();
-        const filteredItems = items.filter(item => item.name.toLowerCase().includes(searchValue));
-        const tableBody = $('#itemTable');
-        tableBody.empty();
-        filteredItems.forEach(item => {
-            tableBody.append(`<tr>
-                <td>${item.id}</td>
-                <td>${item.name}</td>
-                <td>${item.description}</td>
-                <td>
-                    <button class="btn btn-warning btn-sm edit-btn">Edit</button>
-                    <button class="btn btn-danger btn-sm delete-btn">Delete</button>
-                </td>
-            </tr>`);
+        // Add item
+        document.getElementById('itemForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const item = {
+                title: document.getElementById('title').value,
+                item_type: document.getElementById('item_type').value,
+                author: document.getElementById('author').value,
+                genre: document.getElementById('genre').value,
+                status: document.getElementById('status').value,
+                rating: parseFloat(document.getElementById('rating').value) || 0,
+                notes: document.getElementById('notes').value
+            };
+
+            fetch('/api/items', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(item)
+            })
+            .then(r => r.json())
+            .then(() => {
+                this.reset();
+                loadItems();
+            });
         });
-    }
 
-    $('#search').on('input', renderTable);
+        // Render table with filters
+        function renderTable() {
+            const search = document.getElementById('search').value.toLowerCase();
+            const filterType = document.getElementById('filterType').value;
 
-    $(document).on('click', '.delete-btn', function() {
-        const id = $(this).closest('tr').find('td:first').text();
-        items = items.filter(item => item.id != id);
-        renderTable();
-    });
+            let filtered = allItems.filter(item => {
+                const matchSearch = item.title.toLowerCase().includes(search) ||
+                                  (item.author && item.author.toLowerCase().includes(search));
+                const matchType = !filterType || item.item_type === filterType;
+                return matchSearch && matchType;
+            });
 
-    $(document).on('click', '.edit-btn', function() {
-        const id = $(this).closest('tr').find('td:first').text();
-        const item = items.find(item => item.id == id);
-        $('#itemName').val(item.name);
-        $('#itemDescription').val(item.description);
-        items = items.filter(item => item.id != id);
-        renderTable();
-    });
-</script>
+            const tbody = document.getElementById('itemTable');
+            tbody.innerHTML = filtered.map(item => `
+                <tr>
+                    <td><strong>${item.title}</strong></td>
+                    <td><span class="badge badge-info">${item.item_type}</span></td>
+                    <td>${item.author || '-'}</td>
+                    <td>${item.genre || '-'}</td>
+                    <td>${getStatusBadge(item.status)}</td>
+                    <td>${item.rating ? '⭐ ' + item.rating : '-'}</td>
+                    <td>
+                        <button onclick="deleteItem(${item.id})" class="btn btn-danger btn-sm">🗑️</button>
+                    </td>
+                </tr>
+            `).join('') || '<tr><td colspan="7" class="text-center text-muted">Нет предметов</td></tr>';
+        }
+
+        function getStatusBadge(status) {
+            const badges = {
+                'not_started': '<span class="badge badge-secondary">Не начинал</span>',
+                'in_progress': '<span class="badge badge-warning">В процессе</span>',
+                'completed': '<span class="badge badge-success">Завершено</span>'
+            };
+            return badges[status] || status;
+        }
+
+        function deleteItem(id) {
+            if(confirm('Удалить предмет?')) {
+                fetch(`/api/items/${id}`, { method: 'DELETE' })
+                    .then(() => loadItems());
+            }
+        }
+
+        function updateStats() {
+            fetch('/api/stats')
+                .then(r => r.json())
+                .then(stats => {
+                    document.getElementById('statsDiv').innerHTML = `
+                        📊 Всего: <strong>${stats.total_items}</strong> |
+                        ⭐ Средняя оценка: <strong>${stats.average_rating}</strong> |
+                        ✅ Завершено: <strong>${stats.by_status['completed'] || 0}</strong>
+                    `;
+                });
+        }
+
+        document.getElementById('search').addEventListener('input', renderTable);
+        document.getElementById('filterType').addEventListener('change', renderTable);
+
+        loadItems();
+    </script>
+
+    {% else %}
+    <div class="container" style="text-align: center; color: white; padding-top: 100px;">
+        <h1>📚 Добро пожаловать в Collection Manager</h1>
+        <p class="lead">Управляйте своей коллекцией книг, видеоигр и фильмов</p>
+        <a href="/login" class="btn btn-success btn-lg">Войти</a>
+        <a href="/register" class="btn btn-info btn-lg">Регистрация</a>
+    </div>
+    {% endif %}
+
 </body>
 </html>

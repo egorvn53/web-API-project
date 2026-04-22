@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вход - Collection Manager</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; align-items: center; }
+        .login-card { background: white; border-radius: 15px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-5">
+                <div class="login-card p-5">
+                    <h2 class="text-center mb-4">📚 Collection Manager</h2>
+                    <h4 class="text-center mb-4">Вход</h4>
+
+                    {% if message %}
+                        <div class="alert alert-danger">{{ message }}</div>
+                    {% endif %}
+
+                    <form method="POST" action="">
+                        {{ form.hidden_tag() }}
+
+                        <div class="form-group">
+                            {{ form.email.label }}
+                            {% if form.email.errors %}
+                                {{ form.email(class="form-control is-invalid") }}
+                                <div class="invalid-feedback">
+                                    {% for error in form.email.errors %}
+                                        <div>{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                {{ form.email(class="form-control") }}
+                            {% endif %}
+                        </div>
+
+                        <div class="form-group">
+                            {{ form.password.label }}
+                            {% if form.password.errors %}
+                                {{ form.password(class="form-control is-invalid", type="password") }}
+                                <div class="invalid-feedback">
+                                    {% for error in form.password.errors %}
+                                        <div>{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                {{ form.password(class="form-control", type="password") }}
+                            {% endif %}
+                        </div>
+
+                        <div class="form-check mb-3">
+                            {{ form.remember_me() }}
+                            {{ form.remember_me.label }}
+                        </div>
+
+                        {{ form.submit(class="btn btn-primary btn-block") }}
+                    </form>
+
+                    <hr>
+                    <p class="text-center">
+                        Нет аккаунта? <a href="{{ url_for('register') }}">Зарегистрируйтесь</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,16 +1,18 @@
-from flask import Flask, request, jsonify, render_template_string, redirect, url_for, render_template
+from flask import Flask, request, jsonify, redirect, url_for, render_template, flash, make_response
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, BooleanField, SubmitField, TextAreaField, SelectField
-from wtforms.validators import DataRequired, Email, EqualTo, ValidationError
+from wtforms.validators import DataRequired, Email, EqualTo, ValidationError, Length
 from datetime import datetime
+import csv
+import io
 import os
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'your-secret-key-collection-manager-2026'
+app.config['SECRET_KEY'] = 'percol-private-key-2026'
 basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'collection.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -18,19 +20,25 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 CORS(app)
 
-# Flask-Login setup
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
 
-# ============ MODELS ============
+# ============ МОДЕЛИ БД ============
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(256))
+
+    # Новые поля для профиля
+    nickname = db.Column(db.String(80))
+    bio = db.Column(db.String(200))
+    avatar_url = db.Column(db.String(500))
+    pref_type = db.Column(db.String(50), default='all')  # Фактор предпочтения
+
     items = db.relationship('Item', backref='user', lazy=True, cascade='all, delete-orphan')
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
@@ -56,56 +64,69 @@ class Item(db.Model):
 
     def to_dict(self):
         return {
-            'id': self.id,
-            'title': self.title,
-            'item_type': self.item_type,
-            'author': self.author,
-            'genre': self.genre,
-            'status': self.status,
-            'rating': self.rating,
-            'notes': self.notes,
-            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S')
+            'id': self.id, 'title': self.title, 'item_type': self.item_type,
+            'author': self.author, 'genre': self.genre, 'status': self.status,
+            'rating': self.rating, 'notes': self.notes
         }
 
 
-# ============ FORMS ============
+# ============ ФОРМЫ ============
 class LoginForm(FlaskForm):
-    email = StringField('Email', validators=[DataRequired(), Email()])
-    password = PasswordField('Пароль', validators=[DataRequired()])
+    login_id = StringField('Email или Никнейм', validators=[
+        DataRequired(message="Введите email или логин")
+    ])
+    password = PasswordField('Пароль', validators=[
+        DataRequired(message="Введите пароль")
+    ])
     remember_me = BooleanField('Запомнить меня')
     submit = SubmitField('Войти')
 
-
 class RegisterForm(FlaskForm):
-    username = StringField('Имя пользователя', validators=[DataRequired()])
-    email = StringField('Email', validators=[DataRequired(), Email()])
-    password = PasswordField('Пароль', validators=[DataRequired()])
-    password_confirm = PasswordField('Подтвердить пароль', validators=[DataRequired(), EqualTo('password',
-                                                                                               message='Пароли должны совпадать')])
-    submit = SubmitField('Регистрация')
+    username = StringField('Логин', validators=[
+        DataRequired(message="Придумайте логин"),
+        Length(min=3, max=20, message="Логин должен быть от 3 до 20 символов")
+    ])
+    email = StringField('Email', validators=[
+        DataRequired(message="Введите почту"),
+        Email(message="Некорректный формат почты (пример: user@mail.ru)")
+    ])
+    password = PasswordField('Пароль', validators=[
+        DataRequired(message="Придумайте пароль"),
+        Length(min=6, message="Пароль должен быть не менее 6 символов")
+    ])
+    password_confirm = PasswordField('Повтор пароля', validators=[
+        DataRequired(message="Подтвердите пароль"),
+        EqualTo('password', message="Пароли не совпадают")
+    ])
+    submit = SubmitField('Создать аккаунт')
 
     def validate_username(self, username):
         user = User.query.filter_by(username=username.data).first()
         if user:
-            raise ValidationError('Это имя уже занято')
+            raise ValidationError('Этот логин уже занят, выберите другой.')
 
     def validate_email(self, email):
         user = User.query.filter_by(email=email.data).first()
         if user:
-            raise ValidationError('Этот email уже используется')
+            raise ValidationError('Эта почта уже зарегистрирована.')
 
-
-class ItemForm(FlaskForm):
-    title = StringField('Название', validators=[DataRequired()])
-    item_type = SelectField('Тип',
-                            choices=[('book', 'Книга'), ('game', 'Видеоигра'), ('movie', 'Фильм'), ('other', 'Другое')])
-    author = StringField('Автор/Разработчик')
-    genre = StringField('Жанр')
-    status = SelectField('Статус', choices=[('not_started', 'Не начинал'), ('in_progress', 'В процессе'),
-                                            ('completed', 'Завершено')])
-    rating = StringField('Оценка (0-10)')
-    notes = TextAreaField('Заметки')
-    submit = SubmitField('Сохранить')
+class ProfileForm(FlaskForm):
+    nickname = StringField('Никнейм', validators=[
+        Length(max=80, message="Никнейм слишком длинный")
+    ])
+    avatar_url = StringField('URL аватарки', validators=[
+        Length(max=500, message="Ссылка слишком длинная")
+    ])
+    bio = TextAreaField('Коротко о себе', validators=[
+        Length(max=200, message="Описание не должно превышать 200 символов")
+    ])
+    pref_type = SelectField('Приоритет в коллекции', choices=[
+        ('all', 'Всё подряд'),
+        ('books', 'Книги'),
+        ('games', 'Игры'),
+        ('movies', 'Фильмы')
+    ])
+    submit = SubmitField('Сохранить профиль')
 
 
 @login_manager.user_loader
@@ -116,33 +137,31 @@ def load_user(user_id):
 with app.app_context():
     db.create_all()
 
+# ============ МАРШРУТЫ ============
 
-# ============ AUTH ROUTES ============
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
         return redirect(url_for('index'))
-
     form = LoginForm()
-    message = ''
+    message = ""
     if form.validate_on_submit():
-        user = User.query.filter_by(email=form.email.data).first()
+        # Ищем пользователя либо по email, либо по username
+        user = User.query.filter(
+            (User.email == form.login_id.data) | (User.username == form.login_id.data)
+        ).first()
+
         if user and user.check_password(form.password.data):
             login_user(user, remember=form.remember_me.data)
             return redirect(url_for('index'))
-        else:
-            message = "Неправильный email или пароль"
-
+        message = "Неверные данные для входа"
     return render_template('login.html', form=form, message=message)
 
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    if current_user.is_authenticated:
-        return redirect(url_for('index'))
-
+    if current_user.is_authenticated: return redirect(url_for('index'))
     form = RegisterForm()
-    message = ''
     if form.validate_on_submit():
         user = User(username=form.username.data, email=form.email.data)
         user.set_password(form.password.data)
@@ -150,7 +169,6 @@ def register():
         db.session.commit()
         login_user(user)
         return redirect(url_for('index'))
-
     return render_template('register.html', form=form)
 
 
@@ -161,18 +179,31 @@ def logout():
     return redirect(url_for('index'))
 
 
-# ============ MAIN ROUTES ============
+@app.route('/profile', methods=['GET', 'POST'])
+@login_required
+def profile():
+    form = ProfileForm(obj=current_user)
+    if form.validate_on_submit():
+        current_user.nickname = form.nickname.data
+        current_user.avatar_url = form.avatar_url.data
+        current_user.bio = form.bio.data
+        current_user.pref_type = form.pref_type.data
+        db.session.commit()
+        return redirect(url_for('profile'))
+    return render_template('profile.html', form=form)
+
+
+# ============ ГЛАВНЫЙ МАРШРУТ ============
 @app.route('/')
 def index():
-    with open('templates/index.html', 'r', encoding='utf-8') as f:
-        return render_template_string(f.read(), current_user=current_user)
+    return render_template('index.html', current_user=current_user)
 
 
-# ============ API ROUTES ============
+# ============ API МАРШРУТЫ ============
 @app.route('/api/items', methods=['GET'])
 def get_items():
     if not current_user.is_authenticated:
-        return jsonify({'error': 'Unauthorized'}), 401
+        return jsonify({'error': 'Доступ запрещен'}), 401
 
     search = request.args.get('search', '').lower()
     item_type = request.args.get('type', '')
@@ -191,22 +222,22 @@ def get_items():
 @app.route('/api/items/<int:item_id>', methods=['GET'])
 def get_item(item_id):
     if not current_user.is_authenticated:
-        return jsonify({'error': 'Unauthorized'}), 401
+        return jsonify({'error': 'Доступ запрещен'}), 401
 
     item = Item.query.filter_by(id=item_id, user_id=current_user.id).first()
     if not item:
-        return jsonify({'error': 'Item not found'}), 404
+        return jsonify({'error': 'Предмет не найден'}), 404
     return jsonify(item.to_dict()), 200
 
 
 @app.route('/api/items', methods=['POST'])
 def create_item():
     if not current_user.is_authenticated:
-        return jsonify({'error': 'Unauthorized'}), 401
+        return jsonify({'error': 'Доступ запрещен'}), 401
 
     data = request.get_json()
     if not data or 'title' not in data:
-        return jsonify({'error': 'Title is required'}), 400
+        return jsonify({'error': 'Название обязательно'}), 400
 
     item = Item(
         title=data.get('title'),
@@ -227,27 +258,20 @@ def create_item():
 @app.route('/api/items/<int:item_id>', methods=['PUT'])
 def update_item(item_id):
     if not current_user.is_authenticated:
-        return jsonify({'error': 'Unauthorized'}), 401
+        return jsonify({'error': 'Доступ запрещен'}), 401
 
     item = Item.query.filter_by(id=item_id, user_id=current_user.id).first()
     if not item:
-        return jsonify({'error': 'Item not found'}), 404
+        return jsonify({'error': 'Предмет не найден'}), 404
 
     data = request.get_json()
-    if 'title' in data:
-        item.title = data['title']
-    if 'item_type' in data:
-        item.item_type = data['item_type']
-    if 'author' in data:
-        item.author = data['author']
-    if 'genre' in data:
-        item.genre = data['genre']
-    if 'status' in data:
-        item.status = data['status']
-    if 'rating' in data:
-        item.rating = float(data['rating'])
-    if 'notes' in data:
-        item.notes = data['notes']
+    if 'title' in data: item.title = data['title']
+    if 'item_type' in data: item.item_type = data['item_type']
+    if 'author' in data: item.author = data['author']
+    if 'genre' in data: item.genre = data['genre']
+    if 'status' in data: item.status = data['status']
+    if 'rating' in data: item.rating = float(data['rating'])
+    if 'notes' in data: item.notes = data['notes']
 
     db.session.commit()
     return jsonify(item.to_dict()), 200
@@ -256,21 +280,21 @@ def update_item(item_id):
 @app.route('/api/items/<int:item_id>', methods=['DELETE'])
 def delete_item(item_id):
     if not current_user.is_authenticated:
-        return jsonify({'error': 'Unauthorized'}), 401
+        return jsonify({'error': 'Доступ запрещен'}), 401
 
     item = Item.query.filter_by(id=item_id, user_id=current_user.id).first()
     if not item:
-        return jsonify({'error': 'Item not found'}), 404
+        return jsonify({'error': 'Предмет не найден'}), 404
 
     db.session.delete(item)
     db.session.commit()
-    return jsonify({'message': 'Item deleted successfully'}), 204
+    return jsonify({'message': 'Предмет успешно удален'}), 204
 
 
 @app.route('/api/stats', methods=['GET'])
 def get_stats():
     if not current_user.is_authenticated:
-        return jsonify({'error': 'Unauthorized'}), 401
+        return jsonify({'error': 'Доступ запрещен'}), 401
 
     total = Item.query.filter_by(user_id=current_user.id).count()
     by_type = {}
@@ -292,12 +316,49 @@ def get_stats():
 
 @app.errorhandler(404)
 def not_found_error(error):
-    return jsonify({'error': 'Not found'}), 404
-
+    return jsonify({'error': 'Не найдено'}), 404
 
 @app.errorhandler(500)
 def internal_error(error):
-    return jsonify({'error': 'Internal server error'}), 500
+    return jsonify({'error': 'Внутренняя ошибка сервера'}), 500
+
+
+# ============ ЭКСПОРТ ДАННЫХ ============
+
+@app.route('/api/export/json')
+@login_required
+def export_json():
+    items = Item.query.filter_by(user_id=current_user.id).all()
+    data = [i.to_dict() for i in items]
+
+    # Создаем JSON-ответ
+    response = make_response(jsonify(data))
+    response.headers["Content-Disposition"] = "attachment; filename=my_collection.json"
+    response.headers["Content-Type"] = "application/json"
+    return response
+
+
+@app.route('/api/export/csv')
+@login_required
+def export_csv():
+    items = Item.query.filter_by(user_id=current_user.id).all()
+
+    # Используем StringIO для записи CSV в память
+    output = io.StringIO()
+    # Указываем заголовки (колонки)
+    fieldnames = ['id', 'title', 'item_type', 'author', 'genre', 'status', 'rating', 'notes']
+    writer = csv.DictWriter(output, fieldnames=fieldnames)
+
+    writer.writeheader()
+    for item in items:
+        # dict_row = item.to_dict() — это вернет словарь
+        writer.writerow(item.to_dict())
+
+    # Создаем ответ с правильными заголовками для скачивания
+    response = make_response(output.getvalue())
+    response.headers["Content-Disposition"] = "attachment; filename=my_collection.csv"
+    response.headers["Content-Type"] = "text/csv; charset=utf-8"
+    return response
 
 
 if __name__ == '__main__':

@@ -3,11 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Вход - Collection Manager</title>
+    <title>Вход - PerCol</title>
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <style>
         body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; align-items: center; }
         .login-card { background: white; border-radius: 15px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); }
+        .btn-primary { background: #667eea; border: none; }
+        .btn-primary:hover { background: #5a6fd6; }
     </style>
 </head>
 <body>
@@ -15,8 +17,8 @@
         <div class="row justify-content-center">
             <div class="col-md-5">
                 <div class="login-card p-5">
-                    <h2 class="text-center mb-4">📚 Collection Manager</h2>
-                    <h4 class="text-center mb-4">Вход</h4>
+                    <h2 class="text-center mb-4">📦 PerCol</h2>
+                    <h4 class="text-center mb-4">Вход в систему</h4>
 
                     {% if message %}
                         <div class="alert alert-danger">{{ message }}</div>
@@ -26,36 +28,35 @@
                         {{ form.hidden_tag() }}
 
                         <div class="form-group">
-                            {{ form.email.label }}
-                            {% if form.email.errors %}
-                                {{ form.email(class="form-control is-invalid") }}
+                            <label>Email или Никнейм</label>
+                            {% if form.login_id.errors %}
+                                {{ form.login_id(class="form-control is-invalid", placeholder="ivanov или ivan@mail.ru") }}
                                 <div class="invalid-feedback">
-                                    {% for error in form.email.errors %}
-                                        <div>{{ error }}</div>
+                                    {% for error in form.login_id.errors %}
+                                        <span>{{ error }}</span>
                                     {% endfor %}
                                 </div>
                             {% else %}
-                                {{ form.email(class="form-control") }}
+                                {{ form.login_id(class="form-control", placeholder="ivanov или ivan@mail.ru") }}
                             {% endif %}
                         </div>
 
                         <div class="form-group">
-                            {{ form.password.label }}
+                            <label>Пароль</label>
                             {% if form.password.errors %}
-                                {{ form.password(class="form-control is-invalid", type="password") }}
+                                {{ form.password(class="form-control is-invalid") }}
                                 <div class="invalid-feedback">
                                     {% for error in form.password.errors %}
-                                        <div>{{ error }}</div>
-                                    {% endfor %}
+                                        <span>{{ error }}</span> {% endfor %}
                                 </div>
                             {% else %}
-                                {{ form.password(class="form-control", type="password") }}
+                                {{ form.password(class="form-control") }}
                             {% endif %}
                         </div>
 
                         <div class="form-check mb-3">
-                            {{ form.remember_me() }}
-                            {{ form.remember_me.label }}
+                            {{ form.remember_me(class="form-check-input") }}
+                            <label class="form-check-label">Запомнить меня</label>
                         </div>
 
                         {{ form.submit(class="btn btn-primary btn-block") }}
@@ -63,7 +64,7 @@
 
                     <hr>
                     <p class="text-center">
-                        Нет аккаунта? <a href="{{ url_for('register') }}">Зарегистрируйтесь</a>
+                        Впервые здесь? <a href="{{ url_for('register') }}">Создать аккаунт</a>
                     </p>
                 </div>
             </div>

@@ -10,6 +10,7 @@ from datetime import datetime
 import csv
 import io
 import os
+import json
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'percol-private-key-2026'
@@ -290,30 +291,6 @@ def delete_item(item_id):
     db.session.commit()
     return jsonify({'message': 'Предмет успешно удален'}), 204
 
-
-@app.route('/api/stats', methods=['GET'])
-def get_stats():
-    if not current_user.is_authenticated:
-        return jsonify({'error': 'Доступ запрещен'}), 401
-
-    total = Item.query.filter_by(user_id=current_user.id).count()
-    by_type = {}
-    by_status = {}
-
-    for item in Item.query.filter_by(user_id=current_user.id).all():
-        by_type[item.item_type] = by_type.get(item.item_type, 0) + 1
-        by_status[item.status] = by_status.get(item.status, 0) + 1
-
-    avg_rating = db.session.query(db.func.avg(Item.rating)).filter(Item.user_id == current_user.id).scalar() or 0
-
-    return jsonify({
-        'total_items': total,
-        'by_type': by_type,
-        'by_status': by_status,
-        'average_rating': round(float(avg_rating), 2)
-    }), 200
-
-
 @app.errorhandler(404)
 def not_found_error(error):
     return jsonify({'error': 'Не найдено'}), 404
@@ -359,6 +336,142 @@ def export_csv():
     response.headers["Content-Disposition"] = "attachment; filename=my_collection.csv"
     response.headers["Content-Type"] = "text/csv; charset=utf-8"
     return response
+
+
+@app.route('/api/stats', methods=['GET'])
+@login_required
+def get_stats():
+    items = Item.query.filter_by(user_id=current_user.id).all()
+    total = len(items)
+
+    # Распределение по типам и статусам
+    by_type = {"book": 0, "game": 0, "movie": 0, "other": 0}
+    by_status = {"not_started": 0, "in_progress": 0, "completed": 0}
+    total_rating = 0
+
+    for item in items:
+        by_type[item.item_type] = by_type.get(item.item_type, 0) + 1
+        by_status[item.status] = by_status.get(item.status, 0) + 1
+        total_rating += (item.rating or 0)
+
+    avg_rating = round(total_rating / total, 2) if total > 0 else 0
+
+    return jsonify({
+        'total_items': total,
+        'average_rating': avg_rating,
+        'by_type': by_type,
+        'by_status': by_status,
+        # Данные для Chart.js
+        'chart_labels': list(by_type.keys()),
+        'chart_values': list(by_type.values())
+    })
+
+
+@app.route('/api/import/json', methods=['POST'])
+@login_required
+def import_json():
+    if 'file' not in request.files:
+        return jsonify({"error": "No file part"}), 400
+
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"error": "No selected file"}), 400
+
+    try:
+        data = json.load(file)
+        if not isinstance(data, list):
+            return jsonify({"error": "JSON must be a list of items"}), 400
+
+        for d in data:
+            new_item = Item(
+                title=d.get('title', 'Imported Item'),
+                item_type=d.get('item_type', 'other'),
+                author=d.get('author'),
+                genre=d.get('genre'),
+                status=d.get('status', 'not_started'),
+                rating=float(d.get('rating', 0)),
+                notes=d.get('notes'),
+                user_id=current_user.id
+            )
+            db.session.add(new_item)
+        db.session.commit()
+        return jsonify({"message": "Import successful"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route('/api/items/<int:item_id>', methods=['PUT', 'DELETE'])
+@login_required
+def item_detail(item_id):
+    item = Item.query.filter_by(id=item_id, user_id=current_user.id).first_or_404()
+
+    if request.method == 'DELETE':
+        db.session.delete(item)
+        db.session.commit()
+        return jsonify({'message': 'Item deleted successfully'}), 204
+
+    if request.method == 'PUT':
+        data = request.get_json()
+        item.title = data.get('title', item.title)
+        item.item_type = data.get('item_type', item.item_type)
+        item.author = data.get('author', item.author)
+        item.genre = data.get('genre', item.genre)
+        item.status = data.get('status', item.status)
+        item.rating = float(data.get('rating', item.rating))
+        item.notes = data.get('notes', item.notes)
+
+        db.session.commit()
+        return jsonify(item.to_dict())
+
+
+# ============ API ЭНДПОИНТЫ ============
+
+@app.route('/api/items', methods=['GET', 'POST'])
+@login_required
+def manage_items():
+    if request.method == 'GET':
+        # --- ФУНКЦИЯ 4: ПРОДВИНУТАЯ ФИЛЬТРАЦИЯ И СОРТИРОВКА ---
+        sort_by = request.args.get('sort', 'id_desc')
+        filter_type = request.args.get('type', 'all')
+        search_query = request.args.get('q', '').lower()
+
+        query = Item.query.filter_by(user_id=current_user.id)
+
+        # Фильтрация по типу
+        if filter_type != 'all':
+            query = query.filter_by(item_type=filter_type)
+
+        # Поиск (по названию или автору)
+        if search_query:
+            query = query.filter((Item.title.ilike(f'%{search_query}%')) | (Item.author.ilike(f'%{search_query}%')))
+
+        # Сортировка
+        if sort_by == 'rating_desc':
+            query = query.order_by(Item.rating.desc())
+        elif sort_by == 'rating_asc':
+            query = query.order_by(Item.rating.asc())
+        elif sort_by == 'title_asc':
+            query = query.order_by(Item.title.asc())
+        else:
+            query = query.order_by(Item.id.desc())
+
+        items = query.all()
+        return jsonify([i.to_dict() for i in items])
+
+    data = request.get_json()
+    new_item = Item(
+        title=data['title'],
+        item_type=data.get('item_type', 'other'),
+        author=data.get('author'),
+        genre=data.get('genre'),
+        status=data.get('status', 'not_started'),
+        rating=float(data.get('rating', 0)),
+        notes=data.get('notes'),
+        user_id=current_user.id
+    )
+    db.session.add(new_item)
+    db.session.commit()
+    return jsonify(new_item.to_dict()), 201
 
 
 if __name__ == '__main__':

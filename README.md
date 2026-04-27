@@ -1,191 +1,109 @@
-# 📚 Personal Collection Manager
+Техническое задание (ТЗ) на разработку веб-приложения «PerCol»
+1. Общие сведения
+Название проекта: PerCol (Personal Collection Manager).
+Назначение: Веб-сервис для ведения личного реестра коллекционных предметов (книг, видеоигр, фильмов) с возможностью отслеживания статуса прохождения/прочтения, выставления оценок и анализа статистики.
 
-Web API сервис для управления личной коллекцией (книги, видеоигры, фильмы и другое).
+2. Технологический стек
+Backend: Python 3.x, Flask.
 
-## 🎯 Функционал
+База данных: SQLite (через SQLAlchemy).
 
-- ✅ Добавление новых предметов в коллекцию
-- ✅ Редактирование информации о предметах
-- ✅ Удаление предметов
-- ✅ Поиск по названию
-- ✅ Фильтрация по типу (книги, игры, фильмы)
-- ✅ Оценивание предметов (0-10)
-- ✅ Отслеживание статуса (не начинал, в процессе, завершено)
-- ✅ Добавление заметок
+Frontend: HTML5, CSS3 (Bootstrap 4), JavaScript (Fetch API).
 
-## 🛠 Технологии
+Аутентификация: Flask-Login (с хешированием паролей через Werkzeug).
 
-- **Backend:** Flask (Python)
-- **Database:** SQLite
-- **Frontend:** HTML5, CSS3, JavaScript (Bootstrap)
-- **API:** REST
+Работа с формами: Flask-WTF (WTForms).
 
-## 📦 Установка
+3. Функциональные требования
+3.1. Система пользователей
+Регистрация: Пользователь должен иметь возможность создать аккаунт (логин, email, пароль).
 
-### 1. Клонирование репозитория
-```bash
-git clone https://github.com/egorvn53/web-API-project.git
-cd web-API-project
-```
+Авторизация: Вход в систему по логину или email. Поддержка функции «Запомнить меня».
 
-### 2. Создание виртуального окружения
-```bash
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# или
-venv\Scripts\activate  # Windows
-```
+Профиль:
 
-### 3. Установка зависимостей
-```bash
-pip install -r requirements.txt
-```
+Возможность редактирования ника, биографии и URL-аватара.
 
-### 4. Запуск приложения
-```bash
-python app.py
-```
+Выбор предпочтительного типа контента (книги/игры/фильмы).
 
-Приложение будет доступно на `http://localhost:5000`
+3.2. Управление коллекцией (CRUD)
+Добавление: Создание записи о предмете (название, тип, автор, жанр, статус, рейтинг от 0 до 10, заметки).
 
-## 🔌 API Endpoints
+Просмотр: Отображение списка всех предметов пользователя в виде интерактивной таблицы.
 
-### GET /api/items
-Получить все предметы
+Редактирование: Возможность изменения любых полей уже существующего предмета через модальное окно или отдельный интерфейс.
 
-**Query Parameters:**
-- `search` (optional) - поиск по названию
-- `type` (optional) - фильтр по типу (book, game, movie, other)
+Удаление: Безвозвратное удаление предмета из базы данных.
 
-**Пример:**
-```bash
-curl http://localhost:5000/api/items?search=Harry&type=book
-```
+3.3. Продвинутая фильтрация и поиск (Функция №4)
+Поиск: Живой поиск по названию или автору предмета.
 
-**Ответ:**
-```json
-[
-  {
-    "id": 1,
-    "title": "Harry Potter",
-    "item_type": "book",
-    "author": "J.K. Rowling",
-    "genre": "Fantasy",
-    "status": "completed",
-    "rating": 9.5,
-    "notes": "Amazing series!",
-    "created_at": "2026-04-21T12:00:00"
-  }
-]
-```
+Фильтрация: Фильтрация списка по категориям (Книги, Игры, Фильмы, Другое).
 
-### POST /api/items
-Добавить новый предмет
+Сортировка:
 
-**Body:**
-```json
-{
-  "title": "The Witcher 3",
-  "item_type": "game",
-  "author": "CD Projekt Red",
-  "genre": "RPG",
-  "status": "in_progress",
-  "rating": 9.0,
-  "notes": "Epic gaming experience"
-}
-```
+По дате добавления (новые/старые).
 
-**Ответ:** 201 Created
+По рейтингу (по возрастанию/убыванию).
 
-### GET /api/items/<id>
-Получить конкретный предмет
+По алфавиту (А-Я).
 
-**Пример:**
-```bash
-curl http://localhost:5000/api/items/1
-```
+3.4. Импорт и Экспорт данных (Функция №3)
+Экспорт: Выгрузка всей коллекции пользователя в форматах JSON и CSV.
 
-### PUT /api/items/<id>
-Обновить предмет
+Импорт: Загрузка данных из JSON-файла для массового наполнения коллекции.
 
-**Body:** (любые поля для обновления)
-```json
-{
-  "status": "completed",
-  "rating": 10
-}
-```
+3.5. Аналитика и Статистика (Функция №5)
+Расчет общего количества предметов.
 
-### DELETE /api/items/<id>
-Удалить предмет
+Расчет среднего рейтинга по всей коллекции.
 
-```bash
-curl -X DELETE http://localhost:5000/api/items/1
-```
+Визуализация (или текстовый вывод) распределения предметов по статусам (В процессе, Завершено и т.д.) и по типам контента.
 
-## 📋 Структура данных
+4. Требования к интерфейсу (UI/UX)
+Дизайн: Современный адаптивный интерфейс с использованием градиентного фона (linear-gradient(135deg, #667eea 0%, #764ba2 100%)).
 
-Каждый предмет содержит:
-- `id` - уникальный идентификатор
-- `title` - название предмета
-- `item_type` - тип (book, game, movie, other)
-- `author` - автор/разработчик
-- `genre` - жанр
-- `status` - статус (not_started, in_progress, completed)
-- `rating` - оценка (0-10)
-- `notes` - заметки
-- `created_at` - дата создания
+Компоненты:
 
-## 🎨 Frontend
+Навигационная панель (Navbar) с доступом к профилю и выходу.
 
-Интуитивный веб-интерфейс с:
-- Формой для добавления новых предметов
-- Таблицей со всеми предметами
-- Поиском и фильтрацией в реальном времени
-- Кнопками для удаления предметов
-- Красивым дизайном на Bootstrap
+Основная рабочая область в виде карточки (Card) с белым фоном.
 
-## 📝 Примеры использования
+Статусные индикаторы (Badges) разных цветов для визуального отличия статусов предметов.
 
-### Добавить книгу
-```javascript
-fetch('http://localhost:5000/api/items', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    title: "1984",
-    item_type: "book",
-    author: "George Orwell",
-    genre: "Dystopian",
-    status: "completed",
-    rating: 8.5,
-    notes: "Thought-provoking"
-  })
-})
-```
+5. Структура базы данных (Модели)
+User (Пользователь)
+id: Integer, PK
 
-### Получить все игры
-```javascript
-fetch('http://localhost:5000/api/items?type=game')
-  .then(r => r.json())
-  .then(data => console.log(data))
-```
+username: String(80), Unique
 
-## 🐛 Troubleshooting
+email: String(120), Unique
 
-**Порт 5000 уже используется:**
-```bash
-python app.py --port 5001
-```
+password_hash: String(256)
 
-**Ошибка подключения к БД:**
-Удалите файл `collection.db` и запустите приложение заново.
+nickname: String(80)
 
-## 📄 Лицензия
+bio: String(200)
 
-MIT
+avatar_url: String(500)
 
----
+pref_type: String (Предпочтения)
 
-**Автор:** egorvn53  
-**Проект для:** Yandex Liceum
+Item (Предмет коллекции)
+id: Integer, PK
+
+title: String(200), Not Null
+
+item_type: String (book, game, movie, other)
+
+author: String(200)
+
+genre: String(100)
+
+status: String (not_started, in_progress, completed)
+
+rating: Float
+
+notes: Text
+
+user_id: ForeignKey (users.id)
